@@ -147,7 +147,127 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
     var limit = req.query.limit || 100
 
     tweetFetch.search(req.params.latitude, req.params.longitude, req.params.range, limit, function(data) {
-        res.json(data);
+
+        var responseData = {
+            tweets: ["empty"]
+        };
+
+        if (data && data.statuses && data.statuses.length) {
+
+            responseData.code = 200;
+            responseData.msg = "OK";
+
+            responseData.tweets = [];
+
+            var newTweetData = [];
+            var oldTweetData = [];
+            var fetchedTweetIds = [];
+            var existingTweetIds = [];
+
+            // Find existing tweets in our DB. Don't duplicate data.
+
+            data.statuses.forEach(function(tweetData) {
+                fetchedTweetIds.push(tweetData.id);
+            });
+
+            Tweets.find({'tweet_id': {$in: fetchedTweetIds} }).exec(function(err, result) { 
+                if (err) {
+                    console.log("Error fetching tweet:", err);
+                }
+                else {
+
+                    if (result) {
+                        console.log("Found tweets: ", result.length);
+
+                        result.forEach(function(tweet) {
+                            existingTweetIds.push(tweet.id);
+                            responseData.tweets.push(tweet);
+                            console.log("Added old tweet by ", tweet.username);
+                        });
+                    }
+                }
+            });
+
+
+            // Add any new tweets.
+
+            data.statuses.forEach(function(tweetData) {
+
+                if (existingTweetIds.indexOf(tweetData.id) != -1) {
+                    console.log("Skipping extant tweet by ", tweetData.user.screen_name);
+                    return;
+                }
+
+                var userData = tweetData.user || {};
+                var latitude = null;
+                var longitude = null;
+                var coordData = tweetData.geo ? tweetData.geo.coordinates : null;
+
+                if (coordData) {
+                    // The 'geo' property exists.
+                    latitude = coordData[0];
+                    longitude = coordData[1];
+                }
+                else {
+                    // Try using the 'coordinates' property.
+                    coordData = tweetData.coordinates;
+
+                    if (coordData) {
+                        longitude = coordData[0];
+                        latitude = coordData[1];
+                    }
+                }
+
+                if (coordData && coordData.length) {
+
+                    // Save the geotagged tweet.
+
+                    newTweetData.push({
+                        tweet_id: tweetData.id,
+                        text: tweetData.text,
+                        user_full_name: userData.name,
+                        username: userData.screen_name,
+                        location: {
+                            type: "Point",
+                            coordinates: [longitude, latitude]
+                        }
+                    });
+                }
+            });
+
+            if (newTweetData && newTweetData.length > 0) {
+                Tweets.create(newTweetData, function (err) {
+                    if (err) {
+                        console.log('Error saving tweets:', err);
+                    }
+                    else {
+                        newTweetData.forEach(function(tmpTweet) {
+                            responseData.tweets.push(tmpTweet);
+                        });
+
+                        console.log(newTweetData.length, "new tweets: ", responseData.tweets);
+                    }
+
+                    res.json(responseData);
+                });
+            }
+            else {
+                // All tweets already existed
+
+                console.log("All tweets already existed");
+                res.json(responseData);
+            }
+
+        }
+        else {
+            responseData.code = 404;
+            responseData.msg = "No tweets found.";
+            res.json(responseData);
+        }
+
+        console.log("\n\nsending response:\n\n", responseData);
+
+                
     });
     
 });
