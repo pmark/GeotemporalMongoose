@@ -275,6 +275,27 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
     
 });
 
+app.get("/all", function(req, res) {
+    Tweets.find({}).exec(function(err, result) { 
+        if (err) {
+            console.log("Error fetching tweets:", err);
+            res.send("/twitter/:latitude/:longitude/:km");
+        }
+        else {
+            if (result) {
+                console.log("Found tweets: ", result.length);
+
+                var responseData = {
+                    count:result.length,
+                    tweets:result
+                };
+
+                res.json(responseData);
+            }
+        }
+    });
+});
+
 app.get("/", function(req, res) {
     res.render('index');
 });
@@ -354,27 +375,5 @@ function findNear(latitude, longitude, meters, limit, done) {
 
 
 http.createServer(app).listen(app.get("port"), function() {
-    console.log("geotemporal-server is now listening on port " + app.get("port"));
+    console.log("geotemporal-mongoose is now listening on port " + app.get("port"));
 });
-
-function createWebpage (req, res) {
-  // Let's find all the documents
-  Tweets.find({}).exec(function(err, result) { 
-    if (!err) { 
-      res.write(html1 + JSON.stringify(result, undefined, 2) +  html2 + result.length + html3);
-      // Let's see if there are any senior citizens (older than 64) with the last name Doe using the query constructor
-      var query = Tweets.find({'name.last': 'Doe'}); // (ok in this example, it's all entries)
-      query.where('age').gt(64);
-      query.exec(function(err, result) {
-	if (!err) {
-	  res.end(html4 + JSON.stringify(result, undefined, 2) + html5 + result.length + html6);
-	} else {
-	  res.end('Error in second query. ' + err)
-	}
-      });
-    } else {
-      res.end('Error in first query. ' + err)
-    };
-  });
-}
-
