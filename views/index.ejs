@@ -55,7 +55,6 @@
             var markers = new L.MarkerClusterGroup();
 
             $.get('http://localhost:5000/twitter/' + map.getCenter().lat + '/' + map.getCenter().lng + '/' + range + '?limit=2000', function(data) {
-                console.log(data.tweets.length + ' tweets found');
                 if (data.tweets.length > 0) {
                     for (var i = 0; i < data.tweets.length; i++) {
                         var a = data.tweets[i];
@@ -66,7 +65,7 @@
                         else {
                             tweets[a.tweet_id] = a;
                             var title = a.text;
-                            var marker = new L.Marker(new L.LatLng(a.geo.coordinates[0], a.geo.coordinates[1]), { title: title });
+                            var marker = new L.Marker(new L.LatLng(a.geo.coordinates[1], a.geo.coordinates[0]), { title: title });
                             marker.bindPopup(title);
                             markers.addLayer(marker);
                         }
