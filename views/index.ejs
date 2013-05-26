@@ -54,7 +54,7 @@
         function goGetEm(range) {
             var markers = new L.MarkerClusterGroup();
 
-            $.get('http://localhost:5000/twitter/' + map.getCenter().lat + '/' + map.getCenter().lng + '/' + range + '?limit=2000', function(data) {
+            $.get('/twitter/' + map.getCenter().lat + '/' + map.getCenter().lng + '/' + range + '?limit=2000', function(data) {
                 if (data.tweets.length > 0) {
                     for (var i = 0; i < data.tweets.length; i++) {
                         var a = data.tweets[i];
