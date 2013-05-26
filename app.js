@@ -62,7 +62,7 @@ mongoose.connect(uristring, function (err, res) {
 });
 
 var tweetSchema = new mongoose.Schema({ 
-    location: {
+    geo: {
         type: { type: String},
         coordinates: []
     },
@@ -77,7 +77,7 @@ var tweetSchema = new mongoose.Schema({
 // Compiles the schema into a model, opening (or creating, if
 // nonexistent) the 'Tweets' collection in the MongoDB database
 
-tweetSchema.index({location: "2dsphere"}); 
+tweetSchema.index({geo: "2dsphere"}); 
 tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*48}); // 2 days
 
 var Tweets = mongoose.model('Tweets', tweetSchema);
@@ -91,11 +91,11 @@ var Tweets = mongoose.model('Tweets', tweetSchema);
 
 
 // Clear out old data
-// Tweets.remove({}, function(err) {
-//   if (err) {
-//     console.log ('error deleting old data.');
-//   }
-// });
+Tweets.remove({}, function(err) {
+  if (err) {
+    console.log ('error deleting old data.');
+  }
+});
 
 // Creating one item.
 /*
@@ -134,6 +134,8 @@ alicesmith.save(function (err) {if (err) console.log ('Error on save!')});
 
 app.configure(function() {
     app.set("port", process.env.PORT || 5000);
+    app.set('views', __dirname + '/views');
+    app.set('view engine', 'ejs');
     app.use(express.bodyParser());
     app.use(express.methodOverride());
     app.use(app.router);
@@ -144,12 +146,12 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
 
     // Search for results at this location.
 
-    var limit = req.query.limit || 100
+    var limit = req.query.limit || 100;
 
     tweetFetch.search(req.params.latitude, req.params.longitude, req.params.range, limit, function(data) {
 
         var responseData = {
-            tweets: ["empty"]
+            tweets: []
         };
 
         if (data && data.statuses && data.statuses.length) {
@@ -158,6 +160,7 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
             responseData.msg = "OK";
 
             responseData.tweets = [];
+            responseData.statuses = [];
 
             var newTweetData = [];
             var oldTweetData = [];
@@ -222,16 +225,16 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
 
                     // Save the geotagged tweet.
 
-                    newTweetData.push({
-                        tweet_id: tweetData.id,
-                        text: tweetData.text,
-                        user_full_name: userData.name,
-                        username: userData.screen_name,
-                        location: {
-                            type: "Point",
-                            coordinates: [longitude, latitude]
+                    responseData.statuses.push(tweetData);
+                    responseData.tweets.push(
+                        {
+                            tweet_id: tweetData.id,
+                            text: tweetData.text,
+                            user_full_name: userData.name,
+                            username: userData.screen_name,
+                            geo: tweetData.geo
                         }
-                    });
+                    );
                 }
             });
 
@@ -273,7 +276,7 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
 });
 
 app.get("/", function(req, res) {
-    res.send("/twitter/:latitude/:longitude/:km");
+    res.render('index');
 });
 
 app.get("/test", function(req, res) {
