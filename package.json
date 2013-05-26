@@ -1,20 +1,23 @@
 {
-  "name": "hello-mongoose",
-  "version": "0.1.0",
-  "description": "MongoDB with Mongoose on Node.js example",
+  "name": "geotemporal-mongoose",
+  "version": "0.0.1",
+  "description": "Node.js based Geotemporal item service using MongoDB with Mongoose",
   "main": "app.js",
-  "engines" : { 
-      "node" : "0.8",
-      "npm" : ">=1.1"
+  "engines": {
+    "node": "0.8",
+    "npm": ">=1.1"
   },
-  "repository": "https://github.com/mongolab/hello-mongoose.git",
-  "author": "Ben Wen",
+  "repository": "git@github.com:pmark/GeotemporalMongoose.git",
+  "author": "P. Mark Anderson",
   "license": "MIT",
   "dependencies": {
-    "mongoose": "3.5.7"
+    "mongoose": "3.5.7",
+    "express": "~3.2.5"
   },
-  "changelog" : [{"0.0.0": "Initial release"},
-		 {"0.1.0": "Update to Mongoose 3.5.7; new MongoClient semantics"}],
-  "homepage" : "http://hello-mongoose.herokuapp.com"
+  "changelog": [
+    {
+      "0.0.1": "Initial release"
+    }
+  ],
+  "homepage": "http://geotempoal-mongoose.herokuapp.com"
 }
-

@@ -1,13 +1,11 @@
 //
-// hello-mongoose: MongoDB with Mongoose on Node.js example on Heroku.
-// Mongoose is a object/data mapping utility for the MongoDB database.
+// geotemporal-mongoose: Node.js based Geotemporal item service using MongoDB with Mongoose
 //
 
-// by Ben Wen with thanks to Aaron Heckmann
+// by P. Mark Anderson
 
 //
-// Copyright 2012 ObjectLabs Corp.  
-// ObjectLabs operates MongoLab.com a MongoDb-as-a-Service offering
+// Copyright 2013 Seanote
 //
 // MIT Licensed
 //
@@ -32,17 +30,23 @@
 // CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE. 
 
-//
-// Preamble
-var http = require ('http');	     // For serving a basic web page.
-var mongoose = require ("mongoose"); // The reason for this demo.
+"use strict";
+
+var TWEETSERVER_BASE_URL = "http://geotemporal-tweetserver/",
+    express = require("express"),
+    http = require("http"),
+    mongoose = require ("mongoose"),
+    tweetFetch = require("./lib/tweet-fetch.js"),
+    app = express();
+
+mongoose.set('debug', true);
 
 // Here we find an appropriate database to connect to, defaulting to
 // localhost if we don't find one.  
 var uristring = 
   process.env.MONGOLAB_URI || 
   process.env.MONGOHQ_URL || 
-  'mongodb://localhost/HelloMongoose';
+  'mongodb://localhost/GeotemporalMongoose';
 
 // The http server will listen to an appropriate port, or default to
 // port 5000.
@@ -58,71 +62,183 @@ mongoose.connect(uristring, function (err, res) {
   }
 });
 
-// This is the schema.  Note the types, validation and trim
-// statements.  They enforce useful constraints on the data.
-var userSchema = new mongoose.Schema({
-  name: {
-    first: String,
-    last: { type: String, trim: true }
-  },
-  age: { type: Number, min: 0}
+var tweetSchema = new mongoose.Schema({ 
+    location: {
+        type: { type: String},
+        coordinates: []
+    },
+    created_at: Date,
+    tweet_id: Number,
+    text: String,
+    user_full_name: String,
+    username: String
 });
+
 
 // Compiles the schema into a model, opening (or creating, if
-// nonexistent) the 'PowerUsers' collection in the MongoDB database
-var PUser = mongoose.model('PowerUsers', userSchema);
+// nonexistent) the 'Tweets' collection in the MongoDB database
+
+tweetSchema.index({location: "2dsphere"}); 
+tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*48}); // 2 days
+
+var Tweets = mongoose.model('Tweets', tweetSchema);
+
+// Tweets.collection.dropAllIndexes(function (err, results) {
+//     // Handle errors
+//     console.log("drop: ", err, results);
+// });
+
+
+
 
 // Clear out old data
-PUser.remove({}, function(err) {
-  if (err) {
-    console.log ('error deleting old data.');
-  }
-});
+// Tweets.remove({}, function(err) {
+//   if (err) {
+//     console.log ('error deleting old data.');
+//   }
+// });
 
-// Creating one user.
-var johndoe = new PUser ({
-  name: { first: 'John', last: '  Doe   ' },
-  age: 25
+// Creating one item.
+var tweet1 = new Tweets ({
+    user_full_name: "P. Mark Anderson",
+    username: "pmark",
+    text: "Test tweet",
+    location: {
+        type: "Point",
+        coordinates: [-122.6750, 45.5236]
+    }
 });
 
 // Saving it to the database.  
-johndoe.save(function (err) {if (err) console.log ('Error on save!')});
+tweet1.save(function (err) {
+    if (err)
+        console.log('Error on save!', err);
+    else
+        console.log('Created test tweet.');
+});
 
-// Creating more users manually
-var janedoe = new PUser ({
+/*
+// Creating more items manually
+var janedoe = new Tweets ({
   name: { first: 'Jane', last: 'Doe' },
   age: 65
 });
 janedoe.save(function (err) {if (err) console.log ('Error on save!')});
 
-// Creating more users manually
-var alicesmith = new PUser ({
+// Creating more items manually
+var alicesmith = new Tweets ({
   name: { first: 'Alice', last: 'Smith' },
   age: 45
 });
 alicesmith.save(function (err) {if (err) console.log ('Error on save!')});
+*/
+
+app.configure(function() {
+    app.set("port", process.env.port || 5000);
+    app.use(express.bodyParser());
+    app.use(express.methodOverride());
+    app.use(app.router);
+});
+
+// range is in km
+app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
+
+    // Search for results at this location.
+
+    var limit = req.query.limit || 100
+
+    tweetFetch.search(req.params.latitude, req.params.longitude, req.params.range, limit, function(data) {
+        res.json(data);
+    });
+    
+});
+
+app.get("/", function(req, res) {
+
+    // Search for results at this location.
+
+    console.log("params: ", req.params);
+
+    findNear(45.5236, -122.6750, 10, 100, function(err, docs) {
+        if (err) {
+            console.log("ERROR: ", err);
+            res.send("ERROR:: " + err);
+        }
+        else {
+            var matches = [];
+
+            if (docs && docs.results) {
+                docs.results.forEach(function(item) {
+                    console.log("item", item.obj);
+                    matches.push(item.obj);
+                });
+            }
+
+            res.send("found points: " + matches.join("<br><br>"));
+        }
+    });
+});
 
 
-// In case the browser connects before the database is connected, the
-// user will see this message.
-var found = ['DB Connection not yet established.  Try again later.  Check the console output for error messages if this persists.'];
+function findNear(latitude, longitude, meters, limit, done) {
+    // See http://docs.mongodb.org/manual/reference/command/geoNear/#dbcmd.geoNear
 
-// Create a rudimentary http server.  (Note, a real web application
-// would use a complete web framework and router like express.js). 
-// This is effectively the main interaction loop for the application. 
-// As new http requests arrive, the callback function gets invoked.
-http.createServer(function (req, res) {
-  res.writeHead(200, {'Content-Type': 'text/html'});
-  createWebpage(req, res);
-}).listen(theport);
+    meters = meters || 16093; // 10 miles
+    limit = limit || 100;
+
+    // db.runCommand( { geoNear: "tweets", near: [ -122.6750, 45.5236 ], spherical:true } )
+    Tweets.collection.geoNear(longitude, latitude, {
+        spherical: true, 
+        maxDistance: meters
+    }, 
+    done);    
+    // function(err, docs) {
+    //     if (docs.results.length == 1) {
+    //         var distance = docs.results[0].dis;
+    //         var match = docs.results[0].obj;
+    //     }
+    // });
+
+    // Tweets.find( { location: { $near: [longitude, latitude] , $maxDistance: meters } }, done );
+    return;
+
+    // return Tweets.find({
+    //     location: {
+    //         coordinates: {
+    //             $near: [longitude, latitude]
+    //         }
+    //     }
+    // }, 
+    // done);
+
+    // return Tweets.find({ 
+    //     location: { 
+    //         $geoNear: {
+    //             $spherical: true,
+    //             $includeLocs: true,
+    //             $maxDistance: meters,
+    //             $limit: limit,
+    //             $near: { 
+    //                 coordinates: [ longitude, latitude ]
+    //             } 
+    //         } 
+    //     } 
+    // },
+    // done);
+}
+
+
+http.createServer(app).listen(app.get("port"), function() {
+    console.log("geotemporal-server is now listening on port " + app.get("port"));
+});
 
 function createWebpage (req, res) {
   // Let's find all the documents
-  PUser.find({}).exec(function(err, result) { 
+  Tweets.find({}).exec(function(err, result) { 
     if (!err) { 
       res.write(html1 + JSON.stringify(result, undefined, 2) +  html2 + result.length + html3);
       // Let's see if there are any senior citizens (older than 64) with the last name Doe using the query constructor
-      var query = PUser.find({'name.last': 'Doe'}); // (ok in this example, it's all entries)
+      var query = Tweets.find({'name.last': 'Doe'}); // (ok in this example, it's all entries)
       query.where('age').gt(64);
       query.exec(function(err, result) {
 	if (!err) {
@@ -136,32 +252,4 @@ function createWebpage (req, res) {
     };
   });
 }
-
-// Tell the console we're getting ready.
-// The listener in http.createServer should still be active after these messages are emitted.
-console.log('http server will be listening on port %d', theport);
-console.log('CTRL+C to exit');
-
-//
-// House keeping.
-
-//
-// The rudimentary HTML content in three pieces.
-var html1 = '<title> hello-mongoose: MongoLab MongoDB Mongoose Node.js Demo on Heroku </title> \
-<head> \
-<style> body {color: #394a5f; font-family: sans-serif} </style> \
-</head> \
-<body> \
-<h1> hello-mongoose: MongoLab MongoDB Mongoose Node.js Demo on Heroku </h1> \
-See the <a href="https://devcenter.heroku.com/articles/nodejs-mongoose">supporting article on the Dev Center</a> to learn more about data modeling with Mongoose. \
-<br\> \
-<br\> \
-<br\> <h2> All Documents in MonogoDB database </h2> <pre><code> ';
-var html2 = '</code></pre> <br\> <i>';
-var html3 = ' documents. </i> <br\> <br\>';
-var html4 = '<h2> Queried (name.last = "Doe", age >64) Documents in MonogoDB database </h2> <pre><code> ';
-var html5 = '</code></pre> <br\> <i>';
-var html6 = ' documents. </i> <br\> <br\> \
-<br\> <br\> <center><i> Demo code available at <a href="http://github.com/mongolab/hello-mongoose">github.com</a> </i></center>';
-
 
