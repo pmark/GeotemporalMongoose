@@ -95,6 +95,9 @@ Tweets.remove({}, function(err) {
   if (err) {
     console.log ('error deleting old data.');
   }
+  else {
+    console.log("\n\nREMOVED ALL TWEETS\n\n");
+  }
 });
 
 // Creating one item.
@@ -170,6 +173,7 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
             // Find existing tweets in our DB. Don't duplicate data.
 
             data.statuses.forEach(function(tweetData) {
+                console.log("fetched tweet", tweetData.id);
                 fetchedTweetIds.push(tweetData.id);
             });
 
@@ -180,12 +184,12 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
                 else {
 
                     if (result) {
-                        console.log("Found tweets: ", result.length);
+                        console.log(result.length, "existing tweets found");
 
                         result.forEach(function(tweet) {
-                            existingTweetIds.push(tweet.id);
                             responseData.tweets.push(tweet);
-                            console.log("Added old tweet by ", tweet.username);
+                            existingTweetIds.push(tweet.tweet_id);
+                            console.log(tweet.tweet_id, "is an old tweet by", tweet.username);
                         });
                     }
                 }
@@ -197,8 +201,11 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
             data.statuses.forEach(function(tweetData) {
 
                 if (existingTweetIds.indexOf(tweetData.id) != -1) {
-                    console.log("Skipping extant tweet by ", tweetData.user.screen_name);
+                    console.log(tweetData.id, "Skipping extant tweet by", tweetData.user.screen_name);
                     return;
+                }
+                else {
+                    console.log(tweetData.id, "is a new tweet!\n\n");
                 }
 
                 var userData = tweetData.user || {};
@@ -245,10 +252,9 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
                     }
                     else {
                         newTweetData.forEach(function(tmpTweet) {
+                            console.log(tmpTweet.tweet_id, "is a new tweet by", tmpTweet.username);
                             responseData.tweets.push(tmpTweet);
                         });
-
-                        console.log(newTweetData.length, "new tweets: ", responseData.tweets);
                     }
 
                     res.json(responseData);
