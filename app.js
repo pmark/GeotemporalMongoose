@@ -78,7 +78,7 @@ var tweetSchema = new mongoose.Schema({
 // nonexistent) the 'Tweets' collection in the MongoDB database
 
 tweetSchema.index({geo: "2dsphere"}); 
-tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*48}); // 2 days
+tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*24*5}); // 5 days
 
 var Tweets = mongoose.model('Tweets', tweetSchema);
 
@@ -91,11 +91,17 @@ var Tweets = mongoose.model('Tweets', tweetSchema);
 
 
 // Clear out old data
-Tweets.remove({}, function(err) {
-  if (err) {
-    console.log ('error deleting old data.');
-  }
-});
+if (true) {
+    Tweets.remove({}, function(err) {
+      if (err) {
+        console.log ('error deleting old data.');
+      }
+      else {
+        console.log("\n\nREMOVED ALL TWEETS\n\n");
+      }
+    });
+}
+
 
 // Creating one item.
 /*
@@ -170,6 +176,7 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
             // Find existing tweets in our DB. Don't duplicate data.
 
             data.statuses.forEach(function(tweetData) {
+                console.log("fetched tweet", tweetData.id);
                 fetchedTweetIds.push(tweetData.id);
             });
 
@@ -180,99 +187,94 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
                 else {
 
                     if (result) {
-                        console.log("Found tweets: ", result.length);
+                        console.log(result.length, "existing tweets found");
 
                         result.forEach(function(tweet) {
-                            existingTweetIds.push(tweet.id);
                             responseData.tweets.push(tweet);
-                            console.log("Added old tweet by ", tweet.username);
+                            existingTweetIds.push(tweet.tweet_id);
+                            console.log(tweet.tweet_id, "is an old tweet by", tweet.username);
                         });
                     }
                 }
-            });
 
+                data.statuses.forEach(function(tweetData) {
+                    if (existingTweetIds.indexOf(tweetData.id) != -1) {
+                        console.log(tweetData.id, "Skipping extant tweet by", tweetData.user.screen_name);
+                        return;
+                    }
+                    else {
+                        console.log(tweetData.id, "is a new tweet by", tweetData.user.screen_name);
+                    }
 
-            // Add any new tweets.
-
-            data.statuses.forEach(function(tweetData) {
-
-                if (existingTweetIds.indexOf(tweetData.id) != -1) {
-                    console.log("Skipping extant tweet by ", tweetData.user.screen_name);
-                    return;
-                }
-
-                var userData = tweetData.user || {};
-                var latitude = null;
-                var longitude = null;
-                var coordData = tweetData.geo ? tweetData.geo.coordinates : null;
-
-                if (coordData) {
-                    // The 'geo' property exists.
-                    latitude = coordData[0];
-                    longitude = coordData[1];
-                }
-                else {
-                    // Try using the 'coordinates' property.
-                    coordData = tweetData.coordinates;
+                    var userData = tweetData.user || {};
+                    var latitude = null;
+                    var longitude = null;
+                    var coordData = tweetData.geo ? tweetData.geo.coordinates : null;
 
                     if (coordData) {
-                        longitude = coordData[0];
-                        latitude = coordData[1];
+                        // The 'geo' property exists.
+                        latitude = coordData[0];
+                        longitude = coordData[1];
                     }
-                }
+                    else {
+                        // Try using the 'coordinates' property.
+                        coordData = tweetData.coordinates;
 
-                if (coordData && coordData.length) {
+                        if (coordData) {
+                            longitude = coordData[0];
+                            latitude = coordData[1];
+                        }
+                    }
 
-                    // Save the geotagged tweet.
+                    if (coordData && coordData.length) {
 
-                    responseData.statuses.push(tweetData);
-                    responseData.tweets.push(
-                        {
+                        // Save the geotagged tweet.
+
+                        // responseData.statuses.push(tweetData);
+                        newTweetData.push({
                             tweet_id: tweetData.id,
                             text: tweetData.text,
                             user_full_name: userData.name,
                             username: userData.screen_name,
-                            geo: tweetData.geo
+                            geo: {
+                                type: "Point",
+                                coordinates: [longitude, latitude]
+                            }
+                        });
+                    }
+                });
+
+                if (newTweetData && newTweetData.length > 0) {
+                    Tweets.create(newTweetData, function (err, results) {
+                        if (err) {
+                            console.log('Error saving tweets:', err);
                         }
-                    );
+                        else {
+
+                            // TODO:  add _id to each tweet
+
+                            newTweetData.forEach(function(tmpTweet) {
+                                console.log(tmpTweet.tweet_id, "is a new tweet by", tmpTweet.username);
+                                responseData.tweets.push(tmpTweet);
+                            });
+                        }
+
+                        res.json(responseData);
+                    });
+                }
+                else {
+                    // All tweets already existed
+
+                    console.log("All tweets already existed");
+                    res.json(responseData);
                 }
             });
 
-            if (newTweetData && newTweetData.length > 0) {
-                Tweets.create(newTweetData, function (err) {
-                    if (err) {
-                        console.log('Error saving tweets:', err);
-                    }
-                    else {
-                        newTweetData.forEach(function(tmpTweet) {
-                            responseData.tweets.push(tmpTweet);
-                        });
-
-                        console.log(newTweetData.length, "new tweets: ", responseData.tweets);
-                    }
-
-                    res.json(responseData);
-                });
-            }
-            else {
-                // All tweets already existed
-
-                console.log("All tweets already existed");
-                res.json(responseData);
-            }
-
+            // console.log("\n\nsending response:\n\n", responseData);
+                    
         }
-        else {
-            responseData.code = 404;
-            responseData.msg = "No tweets found.";
-            res.json(responseData);
-        }
-
-        console.log("\n\nsending response:\n\n", responseData);
-
-                
     });
-    
+
 });
 
 app.get("/all", function(req, res) {
