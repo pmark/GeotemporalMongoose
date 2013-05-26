@@ -273,7 +273,25 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
 });
 
 app.get("/", function(req, res) {
-    res.send("/twitter/:latitude/:longitude/:km");
+
+    Tweets.find({}).exec(function(err, result) { 
+        if (err) {
+            console.log("Error fetching tweets:", err);
+            res.send("/twitter/:latitude/:longitude/:km");
+        }
+        else {
+            if (result) {
+                console.log("Found tweets: ", result.length);
+
+                var responseData = {
+                    count:result.length,
+                    tweets:result
+                }
+
+                res.json(responseData);
+            }
+        }
+    });
 });
 
 app.get("/test", function(req, res) {
