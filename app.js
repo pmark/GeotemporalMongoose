@@ -32,8 +32,7 @@
 
 "use strict";
 
-var TWEETSERVER_BASE_URL = "http://geotemporal-tweetserver/",
-    express = require("express"),
+var express = require("express"),
     http = require("http"),
     mongoose = require ("mongoose"),
     tweetFetch = require("./lib/tweet-fetch.js"),
@@ -99,6 +98,7 @@ var Tweets = mongoose.model('Tweets', tweetSchema);
 // });
 
 // Creating one item.
+/*
 var tweet1 = new Tweets ({
     user_full_name: "P. Mark Anderson",
     username: "pmark",
@@ -117,7 +117,6 @@ tweet1.save(function (err) {
         console.log('Created test tweet.');
 });
 
-/*
 // Creating more items manually
 var janedoe = new Tweets ({
   name: { first: 'Jane', last: 'Doe' },
@@ -134,7 +133,7 @@ alicesmith.save(function (err) {if (err) console.log ('Error on save!')});
 */
 
 app.configure(function() {
-    app.set("port", process.env.port || 5000);
+    app.set("port", process.env.PORT || 5000);
     app.use(express.bodyParser());
     app.use(express.methodOverride());
     app.use(app.router);
@@ -154,10 +153,13 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
 });
 
 app.get("/", function(req, res) {
+    res.send("/twitter/:latitude/:longitude/:km");
+});
+
+app.get("/test", function(req, res) {
 
     // Search for results at this location.
 
-    console.log("params: ", req.params);
 
     findNear(45.5236, -122.6750, 10, 100, function(err, docs) {
         if (err) {
