@@ -78,10 +78,12 @@ var tweetSchema = new mongoose.Schema({
 // nonexistent) the 'Tweets' collection in the MongoDB database
 
 tweetSchema.index({geo: "2dsphere"}); 
-tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*24*5}); // 5 days
+tweetSchema.index({created_at: 1}, { expireAfterSeconds:3600*24*1}); // 1 day
 
 var Tweets = mongoose.model('Tweets', tweetSchema);
 
+
+// Use this to drop all indexes:
 // Tweets.collection.dropAllIndexes(function (err, results) {
 //     // Handle errors
 //     console.log("drop: ", err, results);
@@ -102,42 +104,6 @@ if (false) {
     });
 }
 
-
-// Creating one item.
-/*
-var tweet1 = new Tweets ({
-    user_full_name: "P. Mark Anderson",
-    username: "pmark",
-    text: "Test tweet",
-    location: {
-        type: "Point",
-        coordinates: [-122.6750, 45.5236]
-    }
-});
-
-// Saving it to the database.  
-tweet1.save(function (err) {
-    if (err)
-        console.log('Error on save!', err);
-    else
-        console.log('Created test tweet.');
-});
-
-// Creating more items manually
-var janedoe = new Tweets ({
-  name: { first: 'Jane', last: 'Doe' },
-  age: 65
-});
-janedoe.save(function (err) {if (err) console.log ('Error on save!')});
-
-// Creating more items manually
-var alicesmith = new Tweets ({
-  name: { first: 'Alice', last: 'Smith' },
-  age: 45
-});
-alicesmith.save(function (err) {if (err) console.log ('Error on save!')});
-*/
-
 app.configure(function() {
     app.set("port", process.env.PORT || 5000);
     app.set('views', __dirname + '/views');
@@ -153,8 +119,9 @@ app.get("/twitter/:latitude/:longitude/:range", function(req, res) {
     // Search for results at this location.
 
     var limit = req.query.limit || 100;
+    var sinceId = null;
 
-    tweetFetch.search(req.params.latitude, req.params.longitude, req.params.range, limit, function(data) {
+    tweetFetch.search(req.params.latitude, req.params.longitude, req.params.range, limit, sinceId, function(data) {
 
         var responseData = {
             tweets: []
@@ -303,11 +270,7 @@ app.get("/", function(req, res) {
 });
 
 app.get("/test", function(req, res) {
-
-    // Search for results at this location.
-
-
-    findNear(45.5236, -122.6750, 10, 100, function(err, docs) {
+    findNear(45.5236, -122.6750, 50, 100, function(err, docs) {
         if (err) {
             console.log("ERROR: ", err);
             res.send("ERROR:: " + err);
@@ -322,6 +285,7 @@ app.get("/test", function(req, res) {
                 });
             }
 
+            console.log("/test found", docs);
             res.send("found points: " + matches.join("<br><br>"));
         }
     });
