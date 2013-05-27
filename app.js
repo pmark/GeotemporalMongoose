@@ -91,7 +91,7 @@ var Tweets = mongoose.model('Tweets', tweetSchema);
 
 
 // Clear out old data
-if (true) {
+if (false) {
     Tweets.remove({}, function(err) {
       if (err) {
         console.log ('error deleting old data.');
